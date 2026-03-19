@@ -2,19 +2,22 @@
 export async function main(ns) {
     ns.tprint("--- Rendszer indítása ---");
 
-    // 1. Hálózat feltörése (DeepScan)
+    // 1. Hud inicializálása
+    ns.run("hud.js"); 
+
+    // 2. Hálózat feltörése (DeepScan)
     ns.run("Crawler.js");
     await ns.sleep(1000);
 
-    // 2. Szervervásárló indítása a háttérben
-    ns.run("ServerBuy.js");
-    await ns.sleep(1000);
+    // 3. Támadás elindítása
+    ns.run("BasicLoader.js"); 
 
-    // 3. Támadás elindítása a TOP 10 célpont ellen
-    ns.run("BasicLoader.js", 1, 10); 
+    // 4. XP Farm elindítása
+    ns.run("XPMaster.js"); 
 
-    // 4. Hud inicializálása
-    ns.run("hud.js"); 
+    // 5. Szervervásárló indítása a háttérben
+    /*ns.run("ServerBuy.js");
+    await ns.sleep(1000);*/
     
     ns.tprint("--- Minden alrendszer ONLINE ---");
 }
