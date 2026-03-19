@@ -1,15 +1,17 @@
 /** @param {NS} ns */
 export async function main(ns) {
     const scriptName = "hack.js";
-    const homeReservedRam = 32; // Több RAM-ot hagyunk a home-on a többi scriptnek
-    const topLimit = 10;
+    const homeReservedRam = 32; // RAM, amit meghagyunk a home-on másnak
+    
+    // Bemeneti paraméter: N = hány TOP szervert támadjunk (0 = összes)
+    const topN = ns.args[0] !== undefined ? ns.args[0] : 0;
 
     if (!ns.fileExists(scriptName, "home")) {
-        ns.tprint(`HIBA: A '${scriptName}' nem található!`);
+        ns.tprint(`HIBA: A '${scriptName}' nem található a home-on!`);
         return;
     }
 
-    // 1. Összegyűjtjük az összes feltört szervert és rangsoroljuk őket
+    // 1. Minden feltört szerver összegyűjtése
     let allServers = [];
     const visited = new Set();
 
@@ -17,6 +19,7 @@ export async function main(ns) {
         if (visited.has(hostname)) return;
         visited.add(hostname);
         
+        // Csak azokat nézzük, amikhez van Root és van rajtuk pénz
         if (ns.hasRootAccess(hostname) && hostname !== "home" && !hostname.startsWith("pserv-")) {
             const maxMoney = ns.getServerMaxMoney(hostname);
             if (maxMoney > 0) {
@@ -32,54 +35,72 @@ export async function main(ns) {
 
     scanAll("home");
 
-    // Rendezés pénz szerint csökkenő sorrendbe és a TOP 10 kiválasztása
-    const targets = allServers
-        .sort((a, b) => b.money - a.money)
-        .slice(0, topLimit)
-        .map(s => s.name);
+    // 2. Célpontok rangsorolása (Legtöbb pénz előre)
+    allServers.sort((a, b) => b.money - a.money);
 
-    ns.tprint(`--- TOP ${targets.length} Célpont kiválasztva ---`);
+    let targets = [];
+    if (topN === 0) {
+        targets = allServers.map(s => s.name);
+        ns.tprint(`--- ÖSSZES (${targets.length}) szerver támadása ---`);
+    } else {
+        targets = allServers.slice(0, topN).map(s => s.name);
+        ns.tprint(`--- TOP ${targets.length} szerver támadása ---`);
+    }
 
-    // 2. Erőforrások (Home + Vásárolt szerverek) összegyűjtése
+    if (targets.length === 0) {
+        ns.tprint("Nincs elérhető célpont!");
+        return;
+    }
+
+    // 3. Erőforrások (Home + Vásárolt szerverek) kezelése
     const hosts = ns.getPurchasedServers();
     hosts.push("home");
-
     const scriptRam = ns.getScriptRam(scriptName);
 
     for (const host of hosts) {
-        // Először leállítjuk a régi hacket ezen a gépen
+        // Először takarítás az adott gépen
         ns.scriptKill(scriptName, host);
 
-        let availableRam = ns.getServerMaxRam(host);
-        if (host === "home") {
-            availableRam -= homeReservedRam;
-        }
+        let maxRam = ns.getServerMaxRam(host);
+        let availableRam = (host === "home") ? maxRam - homeReservedRam : maxRam;
 
         if (availableRam <= 0) continue;
 
         const totalThreadsPossible = Math.floor(availableRam / scriptRam);
         if (totalThreadsPossible < 1) continue;
 
-        // Elosztjuk a szálakat a TOP célpontok között ezen a konkrét szerveren
-        const threadsPerTarget = Math.floor(totalThreadsPossible / targets.length);
+        // OKOS SZÁLKEZELÉS:
+        // Kiszámoljuk, hány célpontot tudunk ténylegesen kiszolgálni ezen a gépen
+        let threadsPerTarget = Math.floor(totalThreadsPossible / targets.length);
+        let activeTargetsCount = targets.length;
 
+        // Ha kevesebb a szál, mint a célpont (kis RAM-os pserv), 
+        // akkor csak az első pár célpontot támadjuk 1-1 szállal.
+        if (threadsPerTarget < 1) {
+            threadsPerTarget = 1;
+            activeTargetsCount = totalThreadsPossible;
+        }
+
+        // Fájl másolása (szükséges a pserv-ekhez)
         if (host !== "home") {
             await ns.scp(scriptName, host, "home");
         }
 
-        let launchedOnHost = 0;
-        for (const target of targets) {
-            const currentThreads = (launchedOnHost === targets.length - 1) 
-                ? (totalThreadsPossible - (threadsPerTarget * (targets.length - 1))) // Maradék szálak az utolsónak
+        // Támadás indítása
+        for (let i = 0; i < activeTargetsCount; i++) {
+            const target = targets[i];
+            
+            // Az utolsó célpont megkapja a maradék "töredék" szálakat is
+            const currentThreads = (i === activeTargetsCount - 1) 
+                ? (totalThreadsPossible - (threadsPerTarget * (activeTargetsCount - 1))) 
                 : threadsPerTarget;
 
             if (currentThreads > 0) {
                 ns.exec(scriptName, host, currentThreads, target);
-                launchedOnHost++;
             }
         }
-        ns.print(`[DEPLOY] ${host}: ${totalThreadsPossible} szál elosztva a célpontok között.`);
+        ns.print(`[DEPLOY] ${host}: ${totalThreadsPossible} szál elindítva ${activeTargetsCount} célpont ellen.`);
     }
 
-    ns.tprint(`Siker: A támadás fut a home-on és ${hosts.length - 1} vásárolt szerveren.`);
+    ns.tprint("Sikeresen frissítve minden szerveren.");
 }
