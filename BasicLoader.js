@@ -1,17 +1,17 @@
 /** @param {NS} ns */
 export async function main(ns) {
     const scriptName = "hack.js";
-    const homeReservedRam = 32; // RAM, amit meghagyunk a home-on másnak
-    
-    // Bemeneti paraméter: N = hány TOP szervert támadjunk (0 = összes)
+    const homeReservedRam = 32;
     const topN = ns.args[0] !== undefined ? ns.args[0] : 0;
+    
+    // MAX IDŐ: Ha egy weaken tovább tartana, mint 15 perc (900 mp), hanyagoljuk.
+    const maxWeakenTime = 15 * 60 * 1000; 
 
     if (!ns.fileExists(scriptName, "home")) {
-        ns.tprint(`HIBA: A '${scriptName}' nem található a home-on!`);
+        ns.tprint(`HIBA: A '${scriptName}' hiányzik!`);
         return;
     }
 
-    // 1. Minden feltört szerver összegyűjtése
     let allServers = [];
     const visited = new Set();
 
@@ -19,23 +19,27 @@ export async function main(ns) {
         if (visited.has(hostname)) return;
         visited.add(hostname);
         
-        // Csak azokat nézzük, amikhez van Root és van rajtuk pénz
         if (ns.hasRootAccess(hostname) && hostname !== "home" && !hostname.startsWith("pserv-")) {
             const maxMoney = ns.getServerMaxMoney(hostname);
-            if (maxMoney > 0) {
+            const reqLevel = ns.getServerRequiredHackingLevel(hostname);
+            const wTime = ns.getWeakenTime(hostname);
+
+            // SZŰRÉS: 
+            // 1. Legyen rajta pénz
+            // 2. A szintem ne legyen kisebb, mint a követelmény
+            // 3. A weaken idő ne legyen több a limitnél
+            if (maxMoney > 0 && reqLevel <= ns.getHackingLevel() && wTime < maxWeakenTime) {
                 allServers.push({ name: hostname, money: maxMoney });
             }
         }
 
         const neighbors = ns.scan(hostname);
-        for (const neighbor of neighbors) {
-            scanAll(neighbor);
-        }
+        for (const neighbor of neighbors) scanAll(neighbor);
     }
 
     scanAll("home");
 
-    // 2. Célpontok rangsorolása (Legtöbb pénz előre)
+    // Rendezés profit szerint
     allServers.sort((a, b) => b.money - a.money);
 
     let targets = [];
