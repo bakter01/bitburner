@@ -4,8 +4,8 @@ export async function main(ns) {
     const homeReservedRam = 32;
     const topN = ns.args[0] !== undefined ? ns.args[0] : 0;
     
-    // MAX IDŐ: Ha egy weaken tovább tartana, mint 15 perc (900 mp), hanyagoljuk.
-    const maxWeakenTime = 15 * 60 * 1000; 
+    // MAX IDŐ: Ha egy weaken tovább tartana, mint 10 perc (600 mp), hanyagoljuk.
+    const maxWeakenTime = 10 * 60 * 1000; 
 
     if (!ns.fileExists(scriptName, "home")) {
         ns.tprint(`HIBA: A '${scriptName}' hiányzik!`);
