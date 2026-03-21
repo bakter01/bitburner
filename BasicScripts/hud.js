@@ -1,7 +1,6 @@
 /** @param {NS} ns */
 export async function main(ns) {
-    // 1. ÖNELLENŐRZÉS: Megnézzük, fut-e már ez a script
-    // Ha a visszatérési érték nem null, és a PID nem a mostani scripté, akkor leállunk.
+    // 1. ÖNELLENŐRZÉS
     const helpers = ns.ps("home");
     const alreadyRunning = helpers.filter(p => p.filename === ns.getScriptName()).length > 1;
 
@@ -27,7 +26,7 @@ export async function main(ns) {
             const headers = [];
             const values = [];
 
-            // Adatok gyűjtése
+            // --- Pénzügyek és XP ---
             headers.push("Scripts: ");
             values.push("$" + ns.formatNumber(ns.getTotalScriptIncome()[0], 2) + '/s');
 
@@ -41,13 +40,28 @@ export async function main(ns) {
             headers.push("Hack XP: ");
             values.push(ns.formatNumber(ns.getTotalScriptExpGain(), 2) + '/s');
 
+            // --- Szerverek ---
             const pservs = ns.getPurchasedServers().length;
             headers.push("P-Servers: ");
             values.push(`${pservs} / ${ns.getPurchasedServerLimit()}`);
 
+            // --- KARMA (AZ ÚJ RÉSZ) ---
+            // A karma lekérése a rejtett statisztikából
+            const karma = ns.getPlayer().karma;
+            headers.push("Karma: ");
+            // Ha elérted a -90-et, kap egy kis jelzést
+            values.push(karma.toFixed(1) + (karma <= -90 ? " (OK)" : ""));
+
             // Kiírás a UI-ra
             hook0.innerText = headers.join("\n");
             hook1.innerText = values.join("\n");
+
+            // Opcionális: Színkódolás a karmához (figyelem, ez az egész oszlop színét módosíthatja)
+            if (karma <= -90) {
+                hook1.style.color = "#00ff00"; // Zöld, ha minden kész
+            } else {
+                hook1.style.color = ""; // Alapértelmezett szín
+            }
 
         } catch (e) {
             ns.print("HUD Error: " + e);
