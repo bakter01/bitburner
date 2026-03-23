@@ -1,55 +1,71 @@
 /** @param {NS} ns */
 export async function main(ns) {
-    const limit = ns.getPurchasedServerLimit(); 
-    let ram = 8; 
-
-    ns.disableLog("ALL");
+    const limit = ns.getPurchasedServerLimit();
+    const maxAllowedRam = ns.getPurchasedServerMaxRam();
+    const loaderScript = "BasicLoader.js";
     
-    // A RÉGI ns.tail() HELYETT AZ ÚJ:
-    ns.ui.openTail(); 
+    ns.disableLog("ALL");
+    ns.ui.openTail();
 
     while (true) {
         let servers = ns.getPurchasedServers();
+        let myMoney = ns.getServerMoneyAvailable("home");
+        let upgraded = false;
 
-        // 1. Ha még nincs meg a 25 szerver, veszünk újakat
+        // 1. FÁZIS: Kezdeti 25 szerver kiépítése
         if (servers.length < limit) {
-            if (ns.getServerMoneyAvailable("home") > ns.getPurchasedServerCost(ram)) {
-                let name = "pserv-" + servers.length;
-                ns.purchaseServer(name, ram);
-                ns.print(`Vásárolva: ${name} (${ram}GB)`);
+            let startRam = 1024;
+            let cost = ns.getPurchasedServerCost(startRam);
+            if (myMoney >= cost) {
+                let sName = `pserv-${servers.length}`;
+                ns.purchaseServer(sName, startRam);
+                ns.print(`Vásárolva: ${sName}`);
+                upgraded = true; // Jelzzük, hogy változott a kapacitás
             }
         } 
-        // 2. Ha már megvan a 25, elkezdjük őket fejleszteni (Upgrade)
+        // 2. FÁZIS: Batch Upgrade (25 szerver egyszerre)
         else {
-            // Megkeressük a legkisebb RAM-mal rendelkező szervert
-            let minRam = Infinity;
-            let targetServer = "";
+            let currentRam = Math.min(...servers.map(s => ns.getServerMaxRam(s)));
+            let nextRam = currentRam * 2;
 
-            for (let s of servers) {
-                let sRam = ns.getServerMaxRam(s);
-                if (sRam < minRam) {
-                    minRam = sRam;
-                    targetServer = s;
-                }
-            }
+            if (nextRam <= maxAllowedRam) {
+                let totalCost = ns.getPurchasedServerCost(nextRam) * limit;
 
-            // A következő szint mindig a duplázás (pl. 8 -> 16 -> 32...)
-            let upgradeRam = minRam * 2;
-            
-            // A játékban a max RAM egy szerveren 2^20 (1,048,576 GB)
-            if (upgradeRam <= ns.getPurchasedServerMaxRam()) {
-                if (ns.getServerMoneyAvailable("home") > ns.getPurchasedServerCost(upgradeRam)) {
-                    ns.print(`Fejlesztés: ${targetServer} -> ${upgradeRam}GB`);
-                    ns.killall(targetServer);
-                    ns.deleteServer(targetServer);
-                    ns.purchaseServer(targetServer, upgradeRam);
+                ns.clearLog();
+                ns.print("=== BATCH SERVER MANAGER ===");
+                ns.print(`Szint: ${ns.formatRam(currentRam)} -> ${ns.formatRam(nextRam)}`);
+                ns.print(`Ár:    $${ns.formatNumber(totalCost)}`);
+                ns.print(`Kész:  ${((myMoney / totalCost) * 100).toFixed(1)}%`);
+
+                if (myMoney >= totalCost) {
+                    ns.print("UPGRADE FOLYAMATBAN...");
+                    for (let i = 0; i < limit; i++) {
+                        let sName = `pserv-${i}`;
+                        ns.killall(sName);
+                        ns.deleteServer(sName);
+                        ns.purchaseServer(sName, nextRam);
+                    }
+                    upgraded = true; // Sikerült a bővítés
                 }
             } else {
-                ns.print("Minden szerver elérte a MAXIMUMOT!");
-                return; // Megáll a script, ha minden maxon van
+                ns.print("Minden szerver MAXON (1PB).");
+                return;
             }
         }
 
-        await ns.sleep(5000); // 5 másodpercenként ellenőriz
+        // --- AZ AUTOMATIZÁLÁS LELKE ---
+        // Ha történt változás (új szerver vagy upgrade), indítjuk a Loadert
+        if (upgraded) {
+            ns.print("Kapacitás változott! BasicLoader indítása...");
+            
+            // Ha már fut a loader, megvárjuk/leállítjuk (opcionális, de így tiszta)
+            ns.scriptKill(loaderScript, "home");
+            
+            // Elindítjuk a Loadert (pl. a TOP 10 szerverre koncentrálva)
+            // A 10-es számot átírhatod, ha több vagy kevesebb célpontot akarsz.
+            ns.run(loaderScript, 1, 10); 
+        }
+
+        await ns.sleep(5000);
     }
 }

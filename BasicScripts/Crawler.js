@@ -1,7 +1,7 @@
 /** @param {NS} ns */
 export async function main(ns) {
-    // Első paraméter a mélység (alapértelmezett: 3)
-    const maxDepth = ns.args[0] || 3;
+    // Első paraméter a mélység (alapértelmezett: 30)
+    const maxDepth = ns.args[0] || 30;
     const visited = new Set();
 
     ns.tprint(`--- Hálózat feltérképezése kezdődik (${maxDepth} szint mélyen) ---`);

@@ -1,6 +1,9 @@
 /** @param {NS} ns */
 export async function main(ns) {
     ns.tprint("--- Rendszer indítása ---");
+    // 0. SoftwareBuy indítása a háttérben, hogy közben gyűjtse a programokat
+    //ns.run("SoftwareBuy.js");
+    //await ns.sleep(1000);
 
     // 1. Hud inicializálása
     ns.run("hud.js"); 

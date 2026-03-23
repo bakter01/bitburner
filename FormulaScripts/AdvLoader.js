@@ -2,71 +2,76 @@
 export async function main(ns) {
     ns.disableLog("ALL");
     
-    // Paraméter kezelés: run AdvLoader.js true --> bekapcsolja az újratöltést
-    // Alapértelmezett: false (csak egyszer fut le az elosztás)
-    const autoRefresh = ns.args[0] !== undefined ? ns.args[0] : false;
+    const autoRefresh = ns.args[0] === true || ns.args[0] === "true";
     const scriptName = "hack.js";
+    const maxWeakenTimeSeconds = 600; 
 
-    // Belső ciklus, ami vagy egyszer fut le, vagy végtelenül
+    // Ezt a változót kihozzuk a ciklus elé, hogy a legvégén is elérhető legyen
+    let lastBestTarget = "Nincs";
+
     do {
         let targets = [];
-        let servers = getAllServers(ns);
+        let allServers = getAllServers(ns);
         let pObj = ns.getPlayer();
 
-        // 1. Profit számítás Formulas alapján
-        for (let server of servers) {
+        for (let server of allServers) {
             if (!ns.hasRootAccess(server) || ns.getServerMaxMoney(server) <= 0) continue;
 
             let sObj = ns.getServer(server);
-            sObj.hackDifficulty = sObj.minDifficulty; // Ideális állapottal számolunk
+            sObj.hackDifficulty = sObj.minDifficulty; 
             
-            let hackChance = ns.formulas.hacking.hackChance(sObj, pObj);
-            let hackTime = ns.formulas.hacking.hackTime(sObj, pObj);
-            let hackMoney = ns.formulas.hacking.hackPercent(sObj, pObj) * sObj.moneyMax;
+            let wTime = ns.formulas.hacking.weakenTime(sObj, pObj) / 1000;
+            if (wTime > maxWeakenTimeSeconds) continue; 
+
+            let hTime = ns.formulas.hacking.hackTime(sObj, pObj) / 1000;
+            let hChance = ns.formulas.hacking.hackChance(sObj, pObj);
+            let hPercent = ns.formulas.hacking.hackPercent(sObj, pObj);
+            let hMoney = hPercent * sObj.moneyMax;
             
-            let score = (hackMoney * hackChance) / (hackTime / 1000);
-            targets.push({ name: server, score: score });
+            let score = (hMoney * hChance) / hTime;
+            targets.push({ name: server, score: score, wTime: wTime });
         }
 
         targets.sort((a, b) => b.score - a.score);
+        
+        if (targets.length === 0) {
+            ns.tprint("HIBA: Nincs célpont a megadott időlimiten belül!");
+            return;
+        }
+
         let bestTarget = targets[0].name;
+        lastBestTarget = bestTarget; // Elmentjük a külső változóba
 
-        ns.print(`[${new Date().toLocaleTimeString()}] Legjobb célpont: ${bestTarget} | AutoRefresh: ${autoRefresh}`);
+        ns.print(`--- ÚJ CÉLPONT ---`);
+        ns.print(`Cél: ${bestTarget} | Weaken: ${Math.round(targets[0].wTime)} mp`);
 
-        // 2. Szálak szétosztása
-        for (let server of servers) {
+        for (let server of allServers) {
             if (!ns.hasRootAccess(server)) continue;
-
-            // Csak akkor avatkozunk be, ha autoRefresh van, vagy ha még nem fut semmi ezen a szerveren
-            let isRunningOurScript = ns.ps(server).some(p => p.filename === scriptName);
+            let reservedRam = (server === "home") ? 64 : 0; 
             
-            if (autoRefresh || !isRunningOurScript) {
-                let freeRam = ns.getServerMaxRam(server) - ns.getServerUsedRam(server);
-                
-                // Ha autoRefresh van, hozzáadjuk a már futó scriptünk RAM-ját a számításhoz (mert le fogjuk lőni)
-                if (autoRefresh) {
-                    let currentProcs = ns.ps(server).filter(p => p.filename === scriptName);
-                    currentProcs.forEach(p => freeRam += (p.threads * ns.getScriptRam(scriptName)));
-                    ns.killall(server, true); // Itt a "true" megvédi magát a futó AdvLoader-t
-                }
+            let isRunning = ns.ps(server).some(p => p.filename === scriptName);
+            
+            // Ha autoRefresh van, VAGY nem fut semmi, akkor telepítünk
+            if (autoRefresh || !isRunning) {
+                let procs = ns.ps(server).filter(p => p.filename === scriptName);
+                for (let p of procs) ns.kill(p.pid);
 
-                if (server === "home") freeRam -= 32; 
-
+                let freeRam = ns.getServerMaxRam(server) - ns.getServerUsedRam(server) - reservedRam;
                 let threads = Math.floor(freeRam / ns.getScriptRam(scriptName));
+                
                 if (threads > 0) {
-                    ns.scp(scriptName, server, "home");
+                    await ns.scp(scriptName, server, "home");
                     ns.exec(scriptName, server, threads, bestTarget);
                 }
             }
         }
 
-        if (autoRefresh) {
-            await ns.sleep(60000); // Percenkénti frissítés, ha kérted
-        }
+        if (autoRefresh) await ns.sleep(60000); 
 
-    } while (autoRefresh); // Ha false, a ciklus véget ér az első kör után
+    } while (autoRefresh);
 
-    ns.tprint("AdvLoader: Szálak szétosztva, a script leállt (nincs folyamatos frissítés).");
+    // Itt volt a hiba: a targets[0] helyett a kimentett változót használjuk
+    ns.tprint(`AdvLoader: Kész! Aktuális legjobb célpont: ${lastBestTarget}`);
 }
 
 function getAllServers(ns) {

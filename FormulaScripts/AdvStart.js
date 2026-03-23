@@ -13,8 +13,8 @@ export async function main(ns) {
     ns.run("AdvXPFarmMin.js"); 
 
     // 4. Szervervásárló indítása a háttérben
-    /*ns.run("ServerBuy.js");
-    await ns.sleep(1000);*/
+    ns.run("ServerBuy.js");
+    await ns.sleep(1000);
 
     
     await ns.sleep(5000);
