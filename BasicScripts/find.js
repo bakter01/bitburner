@@ -34,6 +34,8 @@ export async function main(ns) {
         for (let i = 1; i < path.length; i++) {
             output += `connect ${path[i]}; `;
         }
+
+        output += `backdoor;`;
         ns.tprint(output);
     } else {
         ns.tprint(`A szerver '${target}' nem található a hálózaton.`);

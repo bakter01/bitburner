@@ -13,6 +13,8 @@ run find.js CSEC
 run find.js avmnite-02h
 run find.js I.I.I.I
 run find.js run4theh111z
+run find.js powerhouse-fitness
+run find.js fulcrumassets 
 
 
 
@@ -27,14 +29,14 @@ Sector-12: Finished
 Chongqing: Finished
 New Tokyo: Finished
 Ishima: Finished
-Aevum:
+Aevum: Finsihed
 Volhaven: Finsihed
 
-Slum Snakes:
+Slum Snakes: Finsihed
 Tetrads: (Ishima/New Tokyo/Chongqing)
-The Syndicate: (Sector-12/Aevum)
-The Dark Army: (Chongqing)
-Speakers for the Dead:
+The Syndicate: (Sector-12/Aevum) Minden200 - 3
+The Dark Army: (Chongqing) Minden 300
+Speakers for the Dead: Minden 300
 
 ECorp (Aevum)
 MegaCorp (Sector-12)
