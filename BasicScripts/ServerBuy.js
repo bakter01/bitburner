@@ -1,8 +1,9 @@
 /** @param {NS} ns */
 export async function main(ns) {
-    const limit = ns.getPurchasedServerLimit();
+    const limit = ns.getPurchasedServerLimit(); // 25
     const maxAllowedRam = ns.getPurchasedServerMaxRam();
     const loaderScript = "BasicLoader.js";
+    const startRam = 8; // Itt állítottam át 8 GB-ra
     
     ns.disableLog("ALL");
     ns.ui.openTail();
@@ -14,58 +15,61 @@ export async function main(ns) {
 
         // 1. FÁZIS: Kezdeti 25 szerver kiépítése
         if (servers.length < limit) {
-            let startRam = 1024;
             let cost = ns.getPurchasedServerCost(startRam);
+            
             if (myMoney >= cost) {
-                let sName = `pserv-${servers.length}`;
-                ns.purchaseServer(sName, startRam);
-                ns.print(`Vásárolva: ${sName}`);
-                upgraded = true; // Jelzzük, hogy változott a kapacitás
+                // Sorszám formázása: 00, 01, 02...
+                let sIndex = servers.length.toString().padStart(2, '0');
+                let sName = `pserv-${sIndex}`;
+                
+                let result = ns.purchaseServer(sName, startRam);
+                if (result) {
+                    ns.print(`[VÁSÁRLÁS] ${sName} (${startRam} GB) - OK`);
+                    upgraded = true;
+                }
+            } else {
+                ns.clearLog();
+                ns.print(`Várakozás az első 25 szerverre...`);
+                ns.print(`Szükséges: $${ns.formatNumber(cost)} | Van: $${ns.formatNumber(myMoney)}`);
             }
         } 
-        // 2. FÁZIS: Batch Upgrade (25 szerver egyszerre)
+        // 2. FÁZIS: Batch Upgrade
         else {
+            // Megkeressük a legkisebb RAM-ot a meglévők közül
             let currentRam = Math.min(...servers.map(s => ns.getServerMaxRam(s)));
             let nextRam = currentRam * 2;
 
             if (nextRam <= maxAllowedRam) {
-                let totalCost = ns.getPurchasedServerCost(nextRam) * limit;
+                // Kiszámoljuk a teljes kört (25 szerver fejlesztése)
+                let upgradeCostPerServer = ns.getPurchasedServerUpgradeCost(servers[0], nextRam);
+                let totalCost = upgradeCostPerServer * limit;
 
                 ns.clearLog();
                 ns.print("=== BATCH SERVER MANAGER ===");
-                ns.print(`Szint: ${ns.formatRam(currentRam)} -> ${ns.formatRam(nextRam)}`);
-                ns.print(`Ár:    $${ns.formatNumber(totalCost)}`);
-                ns.print(`Kész:  ${((myMoney / totalCost) * 100).toFixed(1)}%`);
+                ns.print(`Upgrade: ${ns.formatRam(currentRam)} -> ${ns.formatRam(nextRam)}`);
+                ns.print(`Összköltség (25db): $${ns.formatNumber(totalCost)}`);
+                ns.print(`Haladás: ${((myMoney / totalCost) * 100).toFixed(1)}%`);
 
                 if (myMoney >= totalCost) {
-                    ns.print("UPGRADE FOLYAMATBAN...");
-                    for (let i = 0; i < limit; i++) {
-                        let sName = `pserv-${i}`;
-                        ns.killall(sName);
-                        ns.deleteServer(sName);
-                        ns.purchaseServer(sName, nextRam);
+                    ns.print("BATCH UPGRADE INDÍTÁSA...");
+                    for (const sName of servers) {
+                        ns.upgradePurchasedServer(sName, nextRam);
                     }
-                    upgraded = true; // Sikerült a bővítés
+                    upgraded = true;
                 }
             } else {
-                ns.print("Minden szerver MAXON (1PB).");
+                ns.print("Minden szerver elérte a maximumot (1 PB).");
                 return;
             }
         }
 
-        // --- AZ AUTOMATIZÁLÁS LELKE ---
-        // Ha történt változás (új szerver vagy upgrade), indítjuk a Loadert
+        // --- LOAD INDÍTÁSA ---
         if (upgraded) {
-            ns.print("Kapacitás változott! BasicLoader indítása...");
-            
-            // Ha már fut a loader, megvárjuk/leállítjuk (opcionális, de így tiszta)
+            ns.print("Kapacitás változott! Loader frissítése...");
             ns.scriptKill(loaderScript, "home");
-            
-            // Elindítjuk a Loadert (pl. a TOP 10 szerverre koncentrálva)
-            // A 10-es számot átírhatod, ha több vagy kevesebb célpontot akarsz.
             ns.run(loaderScript, 1, 10); 
         }
 
-        await ns.sleep(5000);
+        await ns.sleep(2000); // 2 másodpercenként csekkolunk
     }
 }

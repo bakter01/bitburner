@@ -1,9 +1,13 @@
 /** @param {NS} ns */
 export async function main(ns) {
     ns.disableLog("ALL");
-    ns.ui.openTail(); // A modern, támogatott módszer az ablak megnyitására
+    ns.ui.openTail();
 
-    const targetKarma = -90; 
+    // Paraméter kezelése: ha nincs megadva, akkor egy elérhetetlenül alacsony számot adunk meg
+    const argKarma = ns.args[0];
+    const hasTarget = argKarma !== undefined;
+    const targetKarma = hasTarget ? argKarma : -1e12; // -1 billió (gyakorlatilag végtelen)
+
     const minSuccessChance = 0.8; 
 
     const crimes = [
@@ -11,6 +15,8 @@ export async function main(ns) {
         "Bond Forgery", "Traffick Illegal Arms", "Homicide", "Grand Theft Auto",
         "Kidnap and Ransom", "Assassinate", "Heist"
     ];
+
+    ns.print(hasTarget ? `Célkitűzés: ${targetKarma} Karma elérése.` : "Mód: Végtelenített farmolás.");
 
     while (ns.heart.break() > targetKarma) {
         let bestCrime = "Shoplift";
@@ -21,7 +27,7 @@ export async function main(ns) {
             const chance = ns.singularity.getCrimeChance(crime);
 
             if (chance >= minSuccessChance) {
-                // Karma per másodperc számítás (Karma negatív, ezért abszolút érték)
+                // Karma per másodperc számítás
                 const karmaPerSecond = (Math.abs(stats.karma) * chance) / (stats.time / 1000);
                 
                 if (karmaPerSecond > bestKarmaPerSecond) {
@@ -34,14 +40,16 @@ export async function main(ns) {
         const currentKarma = ns.heart.break().toFixed(2);
         const stats = ns.singularity.getCrimeStats(bestCrime);
         
-        ns.print(`--- KARMA: ${currentKarma} / ${targetKarma} ---`);
-        ns.print(`Aktuális bűntény: ${bestCrime}`);
-        ns.print(`Várható bevétel: $${ns.formatNumber(stats.money)}`);
+        ns.print(`--- JELENLEGI KARMA: ${currentKarma} ---`);
+        if (hasTarget) ns.print(`Cél: ${targetKarma}`);
+        ns.print(`Aktuális bűntény: ${bestCrime} (${(ns.singularity.getCrimeChance(bestCrime) * 100).toFixed(1)}%)`);
         
         const waitTime = ns.singularity.commitCrime(bestCrime);
         await ns.sleep(waitTime);
     }
 
-    ns.tprint("CÉL ELÉRVE: Megvan a -90 Karma. Mehetünk a Syndicate-hez!");
+    if (hasTarget) {
+        ns.tprint(`Siker! Elérted a(z) ${targetKarma} Karmát. A script leállt.`);
+    }
     ns.singularity.stopAction();
 }
